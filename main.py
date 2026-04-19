@@ -28,7 +28,8 @@ class Player:
             "idle":[idle],
             "run":[run1 , run2],
             "step":[step2 , step3],
-            "crouch":[croutch0,croutch1],
+            "crouch":[croutch0,croutch0,croutch1,croutch1],
+            "idle_crouch":[croutch0],
             "slide":[slide]
         }
         self.image = self.anim["idle"][0]
@@ -47,14 +48,17 @@ class Player:
             self.status = "step"
             moving = True
             self.flip = True
-        if not moving:
+        if moving:
             self.speed = 5
+        elif not moving:
             self.status = "idle"
 
-        if keys[K_LCTRL]:
+        if  keys[K_LCTRL] and not moving:
+            self.status = "idle_crouch"
+        elif keys[K_LCTRL] and moving:
             self.status = "crouch"
-            self.speed = 2
-        elif keys[K_LSHIFT]:
+            self.speed = 2.5
+        elif keys[K_LSHIFT] and moving:
             self.status = "run"
             self.speed = 10
 
