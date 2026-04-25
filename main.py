@@ -62,6 +62,15 @@ class Player:
             self.status = "run"
             self.speed = 10
 
+        if keys[K_LCTRL] and keys[K_LSHIFT]:
+            self.status = "slide"
+            if self.flip:
+                for i in range(30):
+                    self.x -= 1
+            else:
+                for i in range(30):
+                    self.x += 1
+
         if keys[K_SPACE] and self.on_ground:
             self.y_vel = -10
             self.on_ground = False
@@ -91,7 +100,45 @@ class Player:
     def draw(self , surface):
         img = transform.flip(self.image , self.flip , False)
         surface.blit(img , self.rect)
+import random
 
+
+class Enemy:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.size = 40
+        self.alive = True
+        self.act = random.choice(["step", "run", "crouch", "jump", "slide"])
+        self.rect = Rect(self.x, self.y, self.size, self.size)
+
+        self.spawn_time = time.get_ticks()  # час появи
+        self.attack_started = False
+
+    def update(self, pl):
+        if not self.alive:
+            return
+
+        now = time.get_ticks()
+
+        if not self.attack_started and now - self.spawn_time > 1000:
+            self.attack_started = True
+            print("Ворог атакує! Треба:", self.act)
+
+        if self.attack_started:
+            if pl.status == self.act:
+                print("✔ Ти врятувався")
+                self.alive = False
+            else:
+
+                if now - self.spawn_time > 1500:
+                    print("❌ Ти не зробив дію:", self.act)
+                    self.alive = False
+
+    def draw(self, surface):
+        if self.alive:
+            color = (255, 0, 0) if not self.attack_started else (255, 100, 100)
+            draw.rect(surface, color, self.rect)
 
 oleg = Player(100 , 650)
 running = True
