@@ -16,7 +16,10 @@ step3 = transform.scale(image.load("assets/player/step 2.png"), (50, 100))
 run1 = transform.scale(image.load("assets/player/running 0.png"), (80, 100))
 run2 = transform.scale(image.load("assets/player/running 1.png"), (80, 100))
 slide = transform.scale(image.load("assets/player/sliding.png"), (80, 40))
-bg = transform.scale(image.load("assets/New Piskel-1.png.png"), (45, 40))
+
+bg = transform.scale(image.load("assets/New Piskel (67).png"), (90, 80))
+close = transform.scale(image.load("assets/New Piskel (68).png"), (45, 40))
+
 ms_d_1 = transform.scale(image.load("assets/ms/dozer/buldozer_1.png"), (400, 400))
 ms_d_2 = transform.scale(image.load("assets/ms/dozer/buldozer_2.png"), (400, 400))
 ms_d_3 = transform.scale(image.load("assets/ms/dozer/buldozer_3000XXXLLL.png"), (400, 400))
@@ -61,37 +64,39 @@ class Player:
     def move(self, keys):
         moving = False
 
+        # Рух вправо/вліво
         if keys[K_d]:
             self.x += self.speed
             self.status = "step"
             moving = True
             self.flip = False
-
         if keys[K_a]:
             self.x -= self.speed
             self.status = "step"
             moving = True
             self.flip = True
 
+        # Логіка швидкості
         if moving:
             self.speed = 5
         else:
             self.status = "idle"
 
+        # Присідання та біг
         if keys[K_LCTRL] and not moving:
             self.status = "idle_crouch"
-
         elif keys[K_LCTRL] and moving:
             self.status = "crouch"
             self.speed = 2.5
-
         elif keys[K_LSHIFT] and moving:
             self.status = "run"
             self.speed = 10
 
-        if keys[K_LCTRL] and keys[K_LSHIFT]:
+        # Слайд (ковзання)
+        if keys[K_LCTRL] and keys[K_LSHIFT] and moving:
             self.status = "slide"
-            self.sl_sp *= 0.98
+            if self.sl_sp > 5:  # Мінімальна швидкість слайду
+                self.sl_sp *= 0.98
 
             if self.flip:
                 self.x -= self.sl_sp
@@ -100,23 +105,32 @@ class Player:
         else:
             self.sl_sp = 20
 
+        # СТРИБОК (тепер працює незалежно від присідання/слайду)
         if keys[K_SPACE] and self.on_ground:
-            self.y_vel = -10
+            self.y_vel = -10  # Трохи збільшив силу стрибка
             self.on_ground = False
+            # Якщо стрибаємо під час слайду, можна додати невеликий бонус до швидкості
+            if self.status == "slide":
+                self.speed = 12
 
     def grav(self):
         global keys
 
-        self.y_vel += self.gravity
-        self.y += self.y_vel
+        # Визначаємо, де рівень підлоги (глибше, якщо присіли)
+        current_ground = ground + 60 if keys[K_LCTRL] else ground
 
-        if self.y >= ground and not keys[K_LCTRL]:
-            self.y = ground
-            self.y_vel = 0
-            self.on_ground = True
+        # Якщо гравець вище рівня підлоги — він НЕ на землі
+        if self.y < current_ground:
+            self.on_ground = False
 
-        elif self.y >= ground and keys[K_LCTRL]:
-            self.y = ground + 60
+        # Застосовуємо гравітацію, якщо не на землі
+        if not self.on_ground:
+            self.y_vel += self.gravity
+            self.y += self.y_vel
+
+        # Перевірка приземлення на підлогу
+        if self.y >= current_ground:
+            self.y = current_ground
             self.y_vel = 0
             self.on_ground = True
 
@@ -129,8 +143,38 @@ class Player:
 
         self.image = frames[int(self.frame)]
 
+    def platform_collide(self, platforms):
+        was_on_platform = False
+
+        for pl in platforms:
+            if self.rect.colliderect(pl.rect):
+                # Падіння зверху на платформу
+                if self.y_vel > 0 and self.rect.bottom <= pl.rect.top + 15:
+                    self.rect.bottom = pl.rect.top
+                    self.y = self.rect.y
+                    self.y_vel = 0
+                    self.on_ground = True
+                    was_on_platform = True
+
+                # Удар головою об платформу знизу
+                elif self.y_vel < 0 and self.rect.top >= pl.rect.bottom - 15:
+                    self.rect.top = pl.rect.bottom
+                    self.y = self.rect.y
+                    self.y_vel = 0
+
+                # Бокові зіткнення
+                if self.rect.colliderect(pl.rect):
+                    if not was_on_platform:  # Коригуємо X, тільки якщо не стоїмо зверху
+                        if self.flip:
+                            self.rect.left = pl.rect.right
+                        else:
+                            self.rect.right = pl.rect.left
+                        self.x = self.rect.x
+
     def update(self):
         self.rect.topleft = (self.x, self.y)
+        self.rect.width = self.image.get_width()
+        self.rect.height = self.image.get_height()
 
     def draw(self, surface, camera_x):
         img = transform.flip(self.image, self.flip, False)
@@ -198,6 +242,7 @@ class Room:
         self.x2 = x2
         self.spawned = False
         self.enemies = []
+        self.platforms = []
 
     def check(self, player):
         if self.x1 <= player.x <= self.x2:
@@ -206,18 +251,27 @@ class Room:
                 self.spawned = True
 
     def spawn(self):
-        self.enemies.append(Enemy())
+        if random.randint(0,2) == 1:
+            self.enemies.append(Enemy())
+        for i in range(2):
+            x_pl = random.randint(self.x1+200 , self.x2-200)
+            y_pl = random.choice([630 , 710 ])
+            self.platforms.append(Platform(x_pl , y_pl , 135 , 40))
+
 
     def update(self, player, camera_x):
         for e in self.enemies:
             e.update(player, camera_x)
 
     def draw(self, surface, camera_x):
-        draw.rect(surface, (0, 0, 0),
-                  (self.x1 - camera_x, 600, self.x2 - self.x1, 10))
+        # draw.rect(surface, (0, 0, 0),
+        #           (self.x1 - camera_x, 600, self.x2 - self.x1, 10))
 
         for e in self.enemies:
             e.draw(surface, camera_x)
+        for pl in self.platforms:
+            for i in range(3):
+                surface.blit(close, (pl.rect.x - camera_x + (i * 45), pl.rect.y))
 
 
 class Level:
@@ -253,21 +307,43 @@ class Level:
         draw.rect(surface, color,
                   (self.finish_x - camera_x, ground - 100, 50, 100))
 
+class Platform:
+    def __init__(self , x , y , w , h):
+        self.rect = rect.Rect(x , y , w , h)
+
+    def draw(self , surface , camera_x):
+        draw.rect(surface ,(255,255,255) , (self.rect.x - camera_x , self.rect.y , self.rect.width , self.rect.height))
+
 
 oleg = Player(100, 650)
 level = Level()
-
+tim = 0
+tim_font = font.SysFont("Arial" , 50)
+w_font = font.SysFont("Arial" , 100)
 running = True
+game_over = False
 while running:
     for e in event.get():
         if e.type == QUIT:
             running = False
-
+    tim +=1
     keys = key.get_pressed()
+
+    if tim >= (60*45):
+        game_over = True
+
+    text_tim = tim_font.render(str(45-tim//60), True, (255,255,255))
 
     oleg.move(keys)
     oleg.grav()
     oleg.animation()
+    oleg.update()
+
+    all_platforms = []
+    for r in level.rooms:
+        all_platforms.extend(r.platforms)
+
+    oleg.platform_collide(all_platforms)
     oleg.update()
 
     camera_x = oleg.x - 600
@@ -280,12 +356,21 @@ while running:
 
     level.update(oleg, camera_x)
 
-    w.fill((0, 0, 255))
+    for x in range(0,20800,90):
+        for y in range(0 , 800 , 80):
+            w.blit(bg, (x-camera_x,y))
+
+
+
+    w.blit(text_tim, (1000, 0))
 
     draw.rect(w, (0, 255, 0), (0 - camera_x, 750, 21000, 50))
 
     level.draw(w, camera_x)
     oleg.draw(w, camera_x)
+
+    if game_over:
+        w.blit(ms_k_3,(0,0))
 
     display.update()
     clock.tick(60)
