@@ -1,8 +1,6 @@
 from pygame import *
 import random
 
-from sympy.polys.groebnertools import is_reduced
-
 init()
 w = display.set_mode((1200, 800))
 display.set_caption("agony")
@@ -17,8 +15,11 @@ run1 = transform.scale(image.load("assets/player/running 0.png"), (80, 100))
 run2 = transform.scale(image.load("assets/player/running 1.png"), (80, 100))
 slide = transform.scale(image.load("assets/player/sliding.png"), (80, 40))
 
-bg = transform.scale(image.load("assets/New Piskel (67).png"), (90, 80))
+bg = transform.scale(image.load("assets/New Piskel-1.png.png"), (90, 80))
 close = transform.scale(image.load("assets/New Piskel (68).png"), (45, 40))
+
+went = transform.scale(image.load("assets/New Piskel-1.png (1).png"), (100, 100))
+open = transform.scale(image.load("assets/New Piskel-2.png.png"), (100, 100))
 
 ms_d_1 = transform.scale(image.load("assets/ms/dozer/buldozer_1.png"), (400, 400))
 ms_d_2 = transform.scale(image.load("assets/ms/dozer/buldozer_2.png"), (400, 400))
@@ -64,7 +65,6 @@ class Player:
     def move(self, keys):
         moving = False
 
-        # Рух вправо/вліво
         if keys[K_d]:
             self.x += self.speed
             self.status = "step"
@@ -76,13 +76,11 @@ class Player:
             moving = True
             self.flip = True
 
-        # Логіка швидкості
         if moving:
             self.speed = 5
         else:
             self.status = "idle"
 
-        # Присідання та біг
         if keys[K_LCTRL] and not moving:
             self.status = "idle_crouch"
         elif keys[K_LCTRL] and moving:
@@ -92,10 +90,9 @@ class Player:
             self.status = "run"
             self.speed = 10
 
-        # Слайд (ковзання)
         if keys[K_LCTRL] and keys[K_LSHIFT] and moving:
             self.status = "slide"
-            if self.sl_sp > 5:  # Мінімальна швидкість слайду
+            if self.sl_sp > 5:
                 self.sl_sp *= 0.98
 
             if self.flip:
@@ -105,30 +102,24 @@ class Player:
         else:
             self.sl_sp = 20
 
-        # СТРИБОК (тепер працює незалежно від присідання/слайду)
         if keys[K_SPACE] and self.on_ground:
-            self.y_vel = -10  # Трохи збільшив силу стрибка
+            self.y_vel = -10
             self.on_ground = False
-            # Якщо стрибаємо під час слайду, можна додати невеликий бонус до швидкості
             if self.status == "slide":
                 self.speed = 12
 
     def grav(self):
         global keys
 
-        # Визначаємо, де рівень підлоги (глибше, якщо присіли)
         current_ground = ground + 60 if keys[K_LCTRL] else ground
 
-        # Якщо гравець вище рівня підлоги — він НЕ на землі
         if self.y < current_ground:
             self.on_ground = False
 
-        # Застосовуємо гравітацію, якщо не на землі
         if not self.on_ground:
             self.y_vel += self.gravity
             self.y += self.y_vel
 
-        # Перевірка приземлення на підлогу
         if self.y >= current_ground:
             self.y = current_ground
             self.y_vel = 0
@@ -148,7 +139,6 @@ class Player:
 
         for pl in platforms:
             if self.rect.colliderect(pl.rect):
-                # Падіння зверху на платформу
                 if self.y_vel > 0 and self.rect.bottom <= pl.rect.top + 15:
                     self.rect.bottom = pl.rect.top
                     self.y = self.rect.y
@@ -156,15 +146,13 @@ class Player:
                     self.on_ground = True
                     was_on_platform = True
 
-                # Удар головою об платформу знизу
                 elif self.y_vel < 0 and self.rect.top >= pl.rect.bottom - 15:
                     self.rect.top = pl.rect.bottom
                     self.y = self.rect.y
                     self.y_vel = 0
 
-                # Бокові зіткнення
                 if self.rect.colliderect(pl.rect):
-                    if not was_on_platform:  # Коригуємо X, тільки якщо не стоїмо зверху
+                    if not was_on_platform:
                         if self.flip:
                             self.rect.left = pl.rect.right
                         else:
@@ -211,13 +199,13 @@ class Enemy:
         self.x = 0
 
     def update(self, pl, camera_x):
+        global game_over
         if not self.alive:
             return
 
         self.x = camera_x + self.x_p
         now = time.get_ticks()
 
-        # через 1 секунду починає атаку
         if not self.attack_started and now - self.spawn_time > 1000:
             self.attack_started = True
             self.image = self.attack_image
@@ -229,6 +217,7 @@ class Enemy:
 
             elif now - self.spawn_time > 1500:
                 print("player failed")
+                game_over = True
                 self.alive = False
 
     def draw(self, surface, camera_x):
@@ -264,8 +253,6 @@ class Room:
             e.update(player, camera_x)
 
     def draw(self, surface, camera_x):
-        # draw.rect(surface, (0, 0, 0),
-        #           (self.x1 - camera_x, 600, self.x2 - self.x1, 10))
 
         for e in self.enemies:
             e.draw(surface, camera_x)
@@ -303,9 +290,9 @@ class Level:
         for r in self.rooms:
             r.draw(surface, camera_x)
 
-        color = (0, 255, 0) if self.completed else (100, 0, 0)
-        draw.rect(surface, color,
-                  (self.finish_x - camera_x, ground - 100, 50, 100))
+        img = open if self.completed else went
+        w.blit(img,(self.finish_x - camera_x , 650))
+
 
 class Platform:
     def __init__(self , x , y , w , h):
